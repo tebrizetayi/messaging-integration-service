@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/tebrizetayi/messaging-integration-service/internal/api"
+	"github.com/tebrizetayi/messaging-integration-service/internal/messagingclients/whatsapp"
 )
 
 func main() {
@@ -24,8 +25,14 @@ func main() {
 	// buffered channel so the goroutine can exit if we don't collect this error.
 	serverErrors := make(chan error, 1)
 
+	messengerClient, _ := whatsapp.NewClient(
+		"994552178732",
+		config.App.WhatsappAccessToken,
+		"https://graph.facebook.com/oauth/access_token",
+		"https://graph.facebook.com/v16.0/")
+
 	// Services
-	controller := api.NewController(nil)
+	controller := api.NewController(messengerClient)
 
 	// Start the HTTP service listening for requests.
 	api := http.Server{
@@ -55,7 +62,8 @@ type Config struct {
 	App AppConfig
 }
 type AppConfig struct {
-	Port string
+	Port                string
+	WhatsappAccessToken string
 }
 
 func initConfig() Config {
@@ -63,7 +71,8 @@ func initConfig() Config {
 
 	return Config{
 		App: AppConfig{
-			Port: viper.GetString("PORT"),
+			Port:                viper.GetString("PORT"),
+			WhatsappAccessToken: viper.GetString("WHATSAPP_ACCESS_TOKEN"),
 		},
 	}
 }

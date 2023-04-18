@@ -34,7 +34,7 @@ func NewClient(clientID string, accessToken string, accessTokenURL string, sendi
 }
 
 func (c *Client) getBearerToken() string {
-	return "EAAH2FBEdZClgBAKApSNi25LDNbiuKLTqap4fGZAfCjGS49Lb1whEmnxNwvaBp6hVZBSi8ZAoJNFTWWPUs35B8SdqwHEfMo8Y5GT5wKZCcNR34ZCbpHw15hazKE6ezMSO93LCHISmJHUzMoPlUGR5zHWn6uun2QUl4oZCwsKbpWeUk6RhDcRa6XAlmffZAYG4zWg4vsbaybsDYwZDZD"
+	return ""
 }
 
 type TemplateLanguage struct {
