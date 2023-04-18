@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 )
 
 type MessagingClientManager interface {
@@ -60,6 +62,29 @@ func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
+}
+
+func (c Controller) VerifyToken(w http.ResponseWriter, r *http.Request) {
+	verifyToken := r.URL.Query().Get("hub.verify_token")
+	challenge := r.URL.Query().Get("hub.challenge")
+
+	if verifyToken == os.Getenv("VERIFY_TOKEN") {
+		log.Println("Verified webhook")
+		w.Header().Set("Content-Type", "text/plain")
+
+		challengeInt, err := strconv.Atoi(challenge)
+		if err != nil {
+			log.Printf("Error converting challenge to integer: %v", err)
+			http.Error(w, "Invalid challenge value", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "%d", challengeInt)
+	} else {
+		log.Println("Webhook Verification failed")
+		http.Error(w, "Invalid verification token", http.StatusUnauthorized)
+	}
 }
 
 func messengerChangedField(data map[string]interface{}) string {

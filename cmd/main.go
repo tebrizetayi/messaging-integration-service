@@ -64,6 +64,7 @@ type Config struct {
 type AppConfig struct {
 	Port                string
 	WhatsappAccessToken string
+	VerifyToken         string
 }
 
 func initConfig() Config {
@@ -73,6 +74,7 @@ func initConfig() Config {
 		App: AppConfig{
 			Port:                viper.GetString("PORT"),
 			WhatsappAccessToken: viper.GetString("WHATSAPP_ACCESS_TOKEN"),
+			VerifyToken:         viper.GetString("VERIFY_TOKEN"),
 		},
 	}
 }

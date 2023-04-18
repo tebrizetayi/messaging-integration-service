@@ -17,6 +17,7 @@ func NewAPI(apiController Controller) http.Handler {
 	// Add API endpoints
 	router.HandleFunc("/api/v1/health", apiController.HealthCheck).Methods(http.MethodGet)
 	router.HandleFunc("/api/v1/hook", apiController.ReceiveMessage).Methods(http.MethodPost)
+	router.HandleFunc("/api/v1/hook", apiController.VerifyToken).Methods(http.MethodGet)
 
 	// Add rate limiting middleware to all endpoints
 	return router
