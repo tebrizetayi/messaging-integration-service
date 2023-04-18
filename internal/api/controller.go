@@ -21,6 +21,11 @@ func NewController(mc MessagingClientManager) Controller {
 	}
 }
 
+func (c Controller) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "OK")
+}
+
 func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
 	var data map[string]interface{}
 	err := json.NewDecoder(r.Body).Decode(&data)
