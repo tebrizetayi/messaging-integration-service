@@ -26,13 +26,13 @@ func main() {
 	serverErrors := make(chan error, 1)
 
 	messengerClient, _ := whatsapp.NewClient(
-		"994552178732",
+		"4917635163191",
 		config.App.WhatsappAccessToken,
 		"https://graph.facebook.com/oauth/access_token",
 		"https://graph.facebook.com/v16.0/")
 
 	// Services
-	controller := api.NewController(messengerClient)
+	controller := api.NewController(&messengerClient)
 
 	// Start the HTTP service listening for requests.
 	api := http.Server{

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -34,7 +35,8 @@ func NewClient(clientID string, accessToken string, accessTokenURL string, sendi
 }
 
 func (c *Client) getBearerToken() string {
-	return ""
+	//return ""
+	return os.Getenv("WHATSAPP_ACCESS_TOKEN")
 }
 
 type TemplateLanguage struct {

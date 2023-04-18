@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,8 @@ import (
 )
 
 type MessagingClientManager interface {
+	SendDocument(document, recipientID, caption string, link bool) (map[string]interface{}, error)
+	SendMessageText(message, recipientID, recipientType string) (map[string]interface{}, error)
 }
 
 // Controller is the API controller
@@ -28,12 +31,11 @@ func (c Controller) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "OK")
 }
 
-func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
+func (c Controller) parsingMessage(message []byte) error {
 	var data map[string]interface{}
-	err := json.NewDecoder(r.Body).Decode(&data)
+	err := json.Unmarshal(message, &data)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return err
 	}
 
 	log.Printf("Received webhook data: %v", data)
@@ -50,6 +52,20 @@ func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
 			// Process different message types here
 			// e.g. text, interactive, location, image, video, audio, document
 
+			document := "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+			caption := ""
+			link := true
+
+			_, err = c.messagingClientManager.SendMessageText("Hormetli "+name, mobile, "whatsapp")
+			if err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+
+			_, err = c.messagingClientManager.SendDocument(document, mobile, caption, link)
+			if err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+
 		} else {
 			delivery, _ := messengerGetDelivery(data)
 			if delivery != nil {
@@ -60,8 +76,26 @@ func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return nil
+}
+
+func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
+
+	bytes, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	log.Println(string(bytes))
+	err = c.parsingMessage(bytes)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
+
 }
 
 func (c Controller) VerifyToken(w http.ResponseWriter, r *http.Request) {
@@ -88,20 +122,27 @@ func (c Controller) VerifyToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func messengerChangedField(data map[string]interface{}) string {
+	if _, ok := data["entry"]; !ok {
+		return ""
+	}
+
 	entry := data["entry"].([]interface{})
 	changes := entry[0].(map[string]interface{})["changes"].([]interface{})
 	field := changes[0].(map[string]interface{})["field"].(string)
 	return field
 }
 
-func messengerGetDelivery(data map[string]interface{}) (map[string]interface{}, error) {
+func messengerGetDelivery(data map[string]interface{}) (interface{}, error) {
 	preprocessedData, err := messengerPreprocess(data)
 	if err != nil {
 		return nil, err
 	}
 
 	if statuses, ok := preprocessedData["statuses"].([]interface{}); ok {
-		return statuses[0].(map[string]interface{})["status"].(map[string]interface{}), nil
+		if len(statuses) > 0 {
+			status := statuses[0].(map[string]interface{})["status"]
+			return status, nil
+		}
 	}
 
 	return nil, nil
