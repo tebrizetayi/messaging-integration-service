@@ -25,11 +25,12 @@ func main() {
 	// buffered channel so the goroutine can exit if we don't collect this error.
 	serverErrors := make(chan error, 1)
 
-	messengerClient, _ := whatsapp.NewClient(
+	messengerClient := whatsapp.NewClient(
 		"4917635163191",
 		config.App.WhatsappAccessToken,
 		"https://graph.facebook.com/oauth/access_token",
-		"https://graph.facebook.com/v16.0/")
+		"https://graph.facebook.com/v16.0/",
+		config.App.WhatsappAccessToken)
 
 	// Services
 	controller := api.NewController(&messengerClient)

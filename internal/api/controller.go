@@ -12,7 +12,7 @@ import (
 
 type MessagingClientManager interface {
 	SendDocument(document, recipientID, caption string, link bool) (map[string]interface{}, error)
-	SendMessageText(message, recipientID, recipientType string) (map[string]interface{}, error)
+	SendMessageText(message, recipientID string) (map[string]interface{}, error)
 }
 
 // Controller is the API controller
@@ -35,10 +35,9 @@ func (c Controller) parsingMessage(message []byte) error {
 	var data map[string]interface{}
 	err := json.Unmarshal(message, &data)
 	if err != nil {
+		log.Printf("Error parsing message: %v, data:%v", err, data)
 		return err
 	}
-
-	log.Printf("Received webhook data: %v", data)
 	changedField := messengerChangedField(data)
 
 	if changedField == "messages" {
@@ -56,7 +55,7 @@ func (c Controller) parsingMessage(message []byte) error {
 			caption := ""
 			link := true
 
-			_, err = c.messagingClientManager.SendMessageText("Hormetli "+name, mobile, "whatsapp")
+			_, err = c.messagingClientManager.SendMessageText("Hormetli "+name, mobile)
 			if err != nil {
 				log.Fatalf("Error: %v", err)
 			}

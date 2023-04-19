@@ -5,38 +5,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"os"
 	"strings"
 )
 
 const (
 	phoneID = "106189092448679"
+
+	MessagingProduct    = "whatsapp"
+	MessageTypeTemplate = "template"
+	MessageTypeText     = "text"
+	MessageTypeDocument = "document"
+
+	RequestTypeIndividual = "individual"
 )
 
 type Client struct {
 	ClientID          string
 	AccessToken       string
-	accessTokenURL    string //https://graph.facebook.com/oauth/access_token?client_id=%s&client_secret=%s&grant_type=client_credentials"
-	sendingMessageURL string //https://graph.facebook.com/v16.0/
-
+	accessTokenURL    string
+	sendingMessageURL string
+	BearerToken       string
 }
 
-func NewClient(clientID string, accessToken string, accessTokenURL string, sendingMessageURL string) (Client, error) {
-	client := Client{
+func NewClient(clientID, accessToken, accessTokenURL, sendingMessageURL, bearerToken string) Client {
+	return Client{
 		ClientID:          clientID,
 		AccessToken:       accessToken,
 		accessTokenURL:    accessTokenURL,
 		sendingMessageURL: sendingMessageURL,
+		BearerToken:       bearerToken,
 	}
-
-	return client, nil
-}
-
-func (c *Client) getBearerToken() string {
-	//return ""
-	return os.Getenv("WHATSAPP_ACCESS_TOKEN")
 }
 
 type TemplateLanguage struct {
@@ -66,70 +65,16 @@ type SendMessageResponse struct {
 	} `json:"messages"`
 }
 
-// url = "https://graph.facebook.com/v16.0/106189092448679/messages"
-func (c *Client) SendMessage(to string, templateName string, languageCode string) (*SendMessageResponse, error) {
-	url := fmt.Sprintf("%s%s/messages", c.sendingMessageURL, phoneID)
-
-	payload := SendMessagePayload{
-		MessagingProduct: "whatsapp",
-		To:               to,
-		Type:             "template",
-		Template: Template{
-			Name:     templateName,
-			Language: TemplateLanguage{Code: languageCode},
-		},
-	}
-
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println(string(jsonPayload))
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Authorization", "Bearer "+c.getBearerToken())
-	req.Header.Add("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data := []byte{}
-	_, err = resp.Body.Read(data)
-	if err != nil {
-		return nil, err
-	}
-
-	var sendMessageResponse SendMessageResponse
-	err = json.Unmarshal(data, &sendMessageResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sendMessageResponse, nil
+func (c *Client) GetUrl() string {
+	return fmt.Sprintf("%s%s/messages", c.sendingMessageURL, phoneID)
 }
 
-//curl -i -X POST \
-//https://graph.facebook.com/v16.0/105954558954427/messages \
-// -H 'Authorization: Bearer EAAFl...' \
-// -H 'Content-Type: application/json' \
-// -d '{ "messaging_product": "whatsapp", "to": "15555555555", "type": "template", "template": { "name": "hello_world", "language": { "code": "en_US" } } }'
-
-func (c *Client) SendCustomMessage(to string, templateName string, languageCode string) (*SendMessageResponse, error) {
-	url := fmt.Sprintf("%s%s/messages", c.sendingMessageURL, phoneID)
-
+func (c *Client) SendMessage(to, templateName, languageCode string) (SendMessageResponse, error) {
+	url := c.GetUrl()
 	payload := SendMessagePayload{
-		MessagingProduct: "whatsapp",
+		MessagingProduct: MessagingProduct,
 		To:               to,
-		Type:             "template",
+		Type:             MessageTypeTemplate,
 		Template: Template{
 			Name:     templateName,
 			Language: TemplateLanguage{Code: languageCode},
@@ -138,39 +83,36 @@ func (c *Client) SendCustomMessage(to string, templateName string, languageCode 
 
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
-		return nil, err
+		return SendMessageResponse{}, err
 	}
 
-	fmt.Println(string(jsonPayload))
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
-		return nil, err
+		return SendMessageResponse{}, err
 	}
 
-	req.Header.Add("Authorization", "Bearer "+c.getBearerToken())
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.BearerToken))
 	req.Header.Add("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return SendMessageResponse{}, err
 	}
 	defer resp.Body.Close()
 
-	data := []byte{}
-	_, err = resp.Body.Read(data)
+	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return SendMessageResponse{}, err
 	}
 
 	var sendMessageResponse SendMessageResponse
 	err = json.Unmarshal(data, &sendMessageResponse)
 	if err != nil {
-		return nil, err
+		return sendMessageResponse, err
 	}
 
-	return &sendMessageResponse, nil
+	return sendMessageResponse, nil
 }
 
 type Text struct {
@@ -186,13 +128,14 @@ type SendMessageText struct {
 	Text             Text   `json:"text"`
 }
 
-func (c *Client) SendMessageText(message, recipientID, recipientType string) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s%s/messages", c.sendingMessageURL, phoneID)
+func (c *Client) SendMessageText(message, recipientID string) (map[string]interface{}, error) {
+	url := c.GetUrl()
+
 	data := SendMessageText{
-		MessagingProduct: "whatsapp",
-		RecipientType:    recipientType,
+		MessagingProduct: MessagingProduct,
+		RecipientType:    RequestTypeIndividual,
 		To:               recipientID,
-		Type:             "text",
+		Type:             MessageTypeText,
 		Text:             Text{PreviewURL: false, Body: message},
 	}
 
@@ -201,13 +144,12 @@ func (c *Client) SendMessageText(message, recipientID, recipientType string) (ma
 		return nil, err
 	}
 
-	log.Printf("Sending message to %s", recipientID)
 	req, err := http.NewRequest("POST", url, strings.NewReader(string(payload)))
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", "Bearer "+c.getBearerToken())
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.BearerToken))
 	req.Header.Add("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -226,14 +168,6 @@ func (c *Client) SendMessageText(message, recipientID, recipientType string) (ma
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return nil, err
-	}
-
-	if resp.StatusCode == 200 {
-		log.Printf("Message sent to %s", recipientID)
-	} else {
-		log.Printf("Message not sent to %s", recipientID)
-		log.Printf("Status code: %d", resp.StatusCode)
-		log.Printf("Response: %v", result)
 	}
 
 	return result, nil
@@ -253,11 +187,11 @@ type SendDocumentRequest struct {
 }
 
 func (c *Client) SendDocument(document, recipientID, caption string, link bool) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s%s/messages", c.sendingMessageURL, phoneID)
+	url := c.GetUrl()
 	data := SendDocumentRequest{
-		MessagingProduct: "whatsapp",
+		MessagingProduct: MessagingProduct,
 		To:               recipientID,
-		Type:             "document",
+		Type:             MessageTypeDocument,
 	}
 
 	if link {
@@ -270,13 +204,12 @@ func (c *Client) SendDocument(document, recipientID, caption string, link bool) 
 	if err != nil {
 		return nil, err
 	}
-
-	log.Printf("Sending document to %s", recipientID)
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(payload)))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("Authorization", "Bearer "+c.getBearerToken())
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.BearerToken))
 	req.Header.Add("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -292,18 +225,9 @@ func (c *Client) SendDocument(document, recipientID, caption string, link bool) 
 	}
 
 	var result map[string]interface{}
-	log.Println(string(body))
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		return nil, err
-	}
-
-	if resp.StatusCode == 200 {
-		log.Printf("Document sent to %s", recipientID)
-	} else {
-		log.Printf("Document not sent to %s", recipientID)
-		log.Printf("Status code: %d", resp.StatusCode)
-		log.Printf("Response: %v", result)
 	}
 
 	return result, nil
