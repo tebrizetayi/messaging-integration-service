@@ -21,20 +21,18 @@ const (
 )
 
 type Client struct {
-	ClientID          string
-	AccessToken       string
-	accessTokenURL    string
-	sendingMessageURL string
-	BearerToken       string
+	ClientID               string
+	AccessToken            string
+	BearerToken            string
+	sendingMessageEndpoint string
 }
 
-func NewClient(clientID, accessToken, accessTokenURL, sendingMessageURL, bearerToken string) Client {
+func NewClient(clientID, accessToken, sendingMessageEndpoint, bearerToken string) Client {
 	return Client{
-		ClientID:          clientID,
-		AccessToken:       accessToken,
-		accessTokenURL:    accessTokenURL,
-		sendingMessageURL: sendingMessageURL,
-		BearerToken:       bearerToken,
+		ClientID:               clientID,
+		AccessToken:            accessToken,
+		sendingMessageEndpoint: sendingMessageEndpoint,
+		BearerToken:            bearerToken,
 	}
 }
 
@@ -66,7 +64,7 @@ type SendMessageResponse struct {
 }
 
 func (c *Client) GetUrl() string {
-	return fmt.Sprintf("%s%s/messages", c.sendingMessageURL, phoneID)
+	return fmt.Sprintf("%s%s/messages", c.sendingMessageEndpoint, phoneID)
 }
 
 func (c *Client) SendMessage(to, templateName, languageCode string) (SendMessageResponse, error) {

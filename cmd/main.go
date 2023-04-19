@@ -28,7 +28,6 @@ func main() {
 	messengerClient := whatsapp.NewClient(
 		"4917635163191",
 		config.App.WhatsappAccessToken,
-		"https://graph.facebook.com/oauth/access_token",
 		"https://graph.facebook.com/v16.0/",
 		config.App.WhatsappAccessToken)
 

@@ -1,13 +1,17 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
 type MessagingClientManager interface {
@@ -26,12 +30,12 @@ func NewController(mc MessagingClientManager) Controller {
 	}
 }
 
-func (c Controller) HealthCheck(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
 }
 
-func (c Controller) parsingMessage(message []byte) error {
+func (c *Controller) parsingMessage(message []byte) error {
 	var data map[string]interface{}
 	err := json.Unmarshal(message, &data)
 	if err != nil {
@@ -47,22 +51,33 @@ func (c Controller) parsingMessage(message []byte) error {
 			name, _ := getName(data)
 			messageType, _ := getMessageType(data)
 			log.Printf("New Message; sender:%s name:%s type:%s", mobile, name, messageType)
-
-			// Process different message types here
-			// e.g. text, interactive, location, image, video, audio, document
-
-			document := "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
-			caption := ""
-			link := true
-
-			_, err = c.messagingClientManager.SendMessageText("Hormetli "+name, mobile)
+			//https://whatsapp-businessapi.herokuapp.com/api/v1/4917635163191/document
+			//"https://whatsapp-businessapi.herokuapp.com/api/v1/4917635163191/document/"
+			url := fmt.Sprintf("https://whatsapp-businessapi.herokuapp.com/api/v1/%s/document", mobile)
+			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
-				log.Fatalf("Error: %v", err)
+				return err
 			}
 
-			_, err = c.messagingClientManager.SendDocument(document, mobile, caption, link)
+			client := &http.Client{}
+			resp, err := client.Do(req)
 			if err != nil {
-				log.Fatalf("Error: %v", err)
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				msg := fmt.Sprintf("Hormetli %s.Analiz neticeleriniz hazir degildir", name)
+				_, err = c.messagingClientManager.SendMessageText(msg, mobile)
+				if err != nil {
+					log.Fatalf("Error: %v", err)
+				}
+			} else {
+				caption := fmt.Sprintf("Hormetli %s. Analiz neticeleriniz hazirdir", name)
+				_, err = c.messagingClientManager.SendDocument(url, mobile, caption, true)
+				if err != nil {
+					log.Fatalf("Error: %v", err)
+				}
 			}
 
 		} else {
@@ -78,7 +93,7 @@ func (c Controller) parsingMessage(message []byte) error {
 	return nil
 }
 
-func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
 
 	bytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -97,7 +112,7 @@ func (c Controller) ReceiveMessage(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (c Controller) VerifyToken(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) VerifyToken(w http.ResponseWriter, r *http.Request) {
 	verifyToken := r.URL.Query().Get("hub.verify_token")
 	challenge := r.URL.Query().Get("hub.challenge")
 
@@ -118,6 +133,40 @@ func (c Controller) VerifyToken(w http.ResponseWriter, r *http.Request) {
 		log.Println("Webhook Verification failed")
 		http.Error(w, "Invalid verification token", http.StatusUnauthorized)
 	}
+}
+
+// RequestData represents the JSON data structure
+type RequestData struct {
+	Number   string `json:"number"`
+	Document string `json:"document"`
+}
+
+func (c *Controller) UploadDocument(w http.ResponseWriter, r *http.Request) {
+	// Parse the JSON data
+	var requestData RequestData
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Decode the base64-encoded PDF
+	pdfData, err := base64.StdEncoding.DecodeString(requestData.Document)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Save the PDF to disk with the filename as the number
+	filename := fmt.Sprintf("%s.pdf", requestData.Number)
+	err = ioutil.WriteFile(filename, pdfData, 0644)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Send a success response
+	w.WriteHeader(http.StatusOK)
 }
 
 func messengerChangedField(data map[string]interface{}) string {
@@ -243,4 +292,24 @@ func getMessageType(data map[string]interface{}) (string, error) {
 	}
 
 	return messageType, nil
+}
+
+func (c *Controller) GetDocument(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	number := vars["number"]
+
+	// Create a file path based on the user ID
+	filePath := fmt.Sprintf("%s.pdf", number) // Replace with the actual path to your documents folder
+
+	log.Println(filePath)
+	// Check if the file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	// Serve the file
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(filePath)))
+	http.ServeFile(w, r, filePath)
 }

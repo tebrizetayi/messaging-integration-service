@@ -1,6 +1,16 @@
 package api
 
-import "testing"
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestParseMessage_Success(t *testing.T) {
 	c := NewController(nil)
@@ -65,5 +75,88 @@ func TestParseMessage_Example2(t *testing.T) {
 	err := c.parsingMessage(data)
 	if err != nil {
 		t.Errorf("error parsing message: %v", err)
+	}
+}
+
+func TestUploadDocument_Success(t *testing.T) {
+	pdfPath := "sample.pdf" // Replace with the path to your sample PDF file
+	pdfData, err := ioutil.ReadFile(pdfPath)
+	if err != nil {
+		t.Fatalf("Unable to read sample PDF file: %v", err)
+	}
+
+	encodedPDF := base64.StdEncoding.EncodeToString(pdfData)
+
+	// Create a JSON object with the number and encoded PDF
+	requestData := RequestData{
+		Number:   "testnumber",
+		Document: encodedPDF,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		t.Fatalf("Unable to marshal JSON data: %v", err)
+	}
+
+	// Create a test request
+	req := httptest.NewRequest("POST", "/api/v1/upload-document", strings.NewReader(string(jsonData)))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Create a ResponseRecorder to record the response
+	rr := httptest.NewRecorder()
+
+	c := NewController(nil)
+	api := NewAPI(c)
+	// Call the uploadHandler with the test request and response recorder
+	api.ServeHTTP(rr, req)
+	// Check if the status code is http.StatusOK
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Check if the file was saved correctly
+	if _, err := os.Stat(fmt.Sprintf("%s.pdf", requestData.Number)); os.IsNotExist(err) {
+		t.Errorf("File was not saved: %v", err)
+	} else {
+		// Clean up the saved file
+		os.Remove(fmt.Sprintf("%s.pdf", requestData.Number))
+	}
+}
+
+func TestGetDocument_Success(t *testing.T) {
+	pdfPath := "sample.pdf" // Replace with the path to your sample PDF file
+	pdfData, err := ioutil.ReadFile(pdfPath)
+	if err != nil {
+		t.Fatalf("Unable to read sample PDF file: %v", err)
+	}
+
+	encodedPDF := base64.StdEncoding.EncodeToString(pdfData)
+
+	// Create a JSON object with the number and encoded PDF
+	requestData := RequestData{
+		Number:   "testnumber",
+		Document: encodedPDF,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		t.Fatalf("Unable to marshal JSON data: %v", err)
+	}
+
+	// Create a test request
+	req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/%s/document", "4917635163191"), strings.NewReader(string(jsonData)))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Create a ResponseRecorder to record the response
+	rr := httptest.NewRecorder()
+
+	c := NewController(nil)
+	api := NewAPI(c)
+	api.ServeHTTP(rr, req)
+	// Call the uploadHandler with the test request and response recorder
+
+	// Check if the status code is http.StatusOK
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 }
