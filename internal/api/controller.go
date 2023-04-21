@@ -15,8 +15,8 @@ import (
 )
 
 type MessagingClientManager interface {
-	SendDocument(document, recipientID, caption string, link bool) (map[string]interface{}, error)
-	SendMessageText(message, recipientID string) (map[string]interface{}, error)
+	SendDocument(from, document, recipientID, caption string, link bool) (map[string]interface{}, error)
+	SendMessageText(from, message, recipientID string) (map[string]interface{}, error)
 }
 
 // Controller is the API controller
@@ -42,22 +42,28 @@ func (c *Controller) parsingMessage(message []byte) error {
 		log.Printf("Error parsing message: %v, data:%v", err, data)
 		return err
 	}
-	changedField := messengerChangedField(data)
+
+	md := &MessengerData{
+		preprocessedData: data,
+	}
+	changedField := md.ChangedField()
 
 	if changedField == "messages" {
-		newMessage, _ := messengerIsMessage(data)
+		newMessage := md.IsMessage()
 		if newMessage {
-			mobile, _ := getMobile(data)
-			name, _ := getName(data)
-			messageType, _ := getMessageType(data)
+			mobile, _ := md.GetMobile()
+			name, _ := md.GetName()
+			messageType, _ := md.GetMessageType()
+			businessNumber, _ := md.GetBusinessNumber()
+
 			log.Printf("New Message; sender:%s name:%s type:%s", mobile, name, messageType)
-			//https://whatsapp-businessapi.herokuapp.com/api/v1/4917635163191/document
-			//"https://whatsapp-businessapi.herokuapp.com/api/v1/4917635163191/document/"
 			url := fmt.Sprintf("https://whatsapp-businessapi.herokuapp.com/api/v1/%s/document", mobile)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				return err
 			}
+
+			_ = businessNumber
 
 			client := &http.Client{}
 			resp, err := client.Do(req)
@@ -68,20 +74,20 @@ func (c *Controller) parsingMessage(message []byte) error {
 
 			if resp.StatusCode != http.StatusOK {
 				msg := fmt.Sprintf("Hormetli %s.Analiz neticeleriniz hazir degildir", name)
-				_, err = c.messagingClientManager.SendMessageText(msg, mobile)
+				_, err = c.messagingClientManager.SendMessageText(businessNumber, msg, mobile)
 				if err != nil {
 					log.Fatalf("Error: %v", err)
 				}
 			} else {
 				caption := fmt.Sprintf("Hormetli %s. Analiz neticeleriniz hazirdir", name)
-				_, err = c.messagingClientManager.SendDocument(url, mobile, caption, true)
+				_, err = c.messagingClientManager.SendDocument(businessNumber, url, mobile, caption, true)
 				if err != nil {
 					log.Fatalf("Error: %v", err)
 				}
 			}
 
 		} else {
-			delivery, _ := messengerGetDelivery(data)
+			delivery, _ := md.GetDelivery()
 			if delivery != nil {
 				log.Printf("Message : %v", delivery)
 			} else {
@@ -167,131 +173,6 @@ func (c *Controller) UploadDocument(w http.ResponseWriter, r *http.Request) {
 
 	// Send a success response
 	w.WriteHeader(http.StatusOK)
-}
-
-func messengerChangedField(data map[string]interface{}) string {
-	if _, ok := data["entry"]; !ok {
-		return ""
-	}
-
-	entry := data["entry"].([]interface{})
-	changes := entry[0].(map[string]interface{})["changes"].([]interface{})
-	field := changes[0].(map[string]interface{})["field"].(string)
-	return field
-}
-
-func messengerGetDelivery(data map[string]interface{}) (interface{}, error) {
-	preprocessedData, err := messengerPreprocess(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if statuses, ok := preprocessedData["statuses"].([]interface{}); ok {
-		if len(statuses) > 0 {
-			status := statuses[0].(map[string]interface{})["status"]
-			return status, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func messengerIsMessage(data map[string]interface{}) (bool, error) {
-	preprocessedData, err := messengerPreprocess(data)
-	if err != nil {
-		return false, err
-	}
-
-	if _, ok := preprocessedData["messages"]; ok {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func messengerPreprocess(data map[string]interface{}) (map[string]interface{}, error) {
-	entry, ok := data["entry"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("entry not found in data")
-	}
-
-	changes, ok := entry[0].(map[string]interface{})["changes"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("changes not found in entry")
-	}
-
-	value, ok := changes[0].(map[string]interface{})["value"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("value not found in changes")
-	}
-
-	return value, nil
-}
-
-func getMobile(data map[string]interface{}) (string, error) {
-	preprocessedData, err := messengerPreprocess(data)
-	if err != nil {
-		return "", err
-	}
-
-	contacts, ok := preprocessedData["contacts"].([]interface{})
-	if !ok {
-		return "", fmt.Errorf("contacts not found in data")
-	}
-
-	waID, ok := contacts[0].(map[string]interface{})["wa_id"].(string)
-	if !ok {
-		return "", fmt.Errorf("wa_id not found in contacts")
-	}
-
-	return waID, nil
-}
-
-func getName(data map[string]interface{}) (string, error) {
-	preprocessedData, err := messengerPreprocess(data)
-	if err != nil {
-		return "", err
-	}
-
-	contacts, ok := preprocessedData["contacts"].([]interface{})
-	if !ok {
-		return "", fmt.Errorf("contacts not found in data")
-	}
-
-	contact := contacts[0].(map[string]interface{})
-
-	profile, ok := contact["profile"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("profile not found in contact")
-	}
-
-	name, ok := profile["name"].(string)
-	if !ok {
-		return "", fmt.Errorf("name not found in profile")
-	}
-
-	return name, nil
-}
-
-func getMessageType(data map[string]interface{}) (string, error) {
-	preprocessedData, err := messengerPreprocess(data)
-	if err != nil {
-		return "", err
-	}
-
-	messages, ok := preprocessedData["messages"].([]interface{})
-	if !ok {
-		return "", fmt.Errorf("messages not found in data")
-	}
-
-	message := messages[0].(map[string]interface{})
-
-	messageType, ok := message["type"].(string)
-	if !ok {
-		return "", fmt.Errorf("type not found in message")
-	}
-
-	return messageType, nil
 }
 
 func (c *Controller) GetDocument(w http.ResponseWriter, r *http.Request) {

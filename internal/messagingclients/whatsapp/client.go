@@ -10,14 +10,16 @@ import (
 )
 
 const (
-	phoneID = "106189092448679"
-
 	MessagingProduct    = "whatsapp"
 	MessageTypeTemplate = "template"
 	MessageTypeText     = "text"
 	MessageTypeDocument = "document"
 
 	RequestTypeIndividual = "individual"
+)
+
+var (
+	phoneBusinessMap = map[string]string{"15550909792": "106189092448679"}
 )
 
 type Client struct {
@@ -63,12 +65,12 @@ type SendMessageResponse struct {
 	} `json:"messages"`
 }
 
-func (c *Client) GetUrl() string {
-	return fmt.Sprintf("%s%s/messages", c.sendingMessageEndpoint, phoneID)
+func (c *Client) GetUrl(from string) string {
+	return fmt.Sprintf("%s%s/messages", c.sendingMessageEndpoint, phoneBusinessMap[from])
 }
 
-func (c *Client) SendMessage(to, templateName, languageCode string) (SendMessageResponse, error) {
-	url := c.GetUrl()
+func (c *Client) SendMessage(from, to, templateName, languageCode string) (SendMessageResponse, error) {
+	url := c.GetUrl(from)
 	payload := SendMessagePayload{
 		MessagingProduct: MessagingProduct,
 		To:               to,
@@ -126,8 +128,8 @@ type SendMessageText struct {
 	Text             Text   `json:"text"`
 }
 
-func (c *Client) SendMessageText(message, recipientID string) (map[string]interface{}, error) {
-	url := c.GetUrl()
+func (c *Client) SendMessageText(from, message, recipientID string) (map[string]interface{}, error) {
+	url := c.GetUrl(from)
 
 	data := SendMessageText{
 		MessagingProduct: MessagingProduct,
@@ -184,8 +186,8 @@ type SendDocumentRequest struct {
 	Document         Document `json:"document"`
 }
 
-func (c *Client) SendDocument(document, recipientID, caption string, link bool) (map[string]interface{}, error) {
-	url := c.GetUrl()
+func (c *Client) SendDocument(from, document, recipientID, caption string, link bool) (map[string]interface{}, error) {
+	url := c.GetUrl(from)
 	data := SendDocumentRequest{
 		MessagingProduct: MessagingProduct,
 		To:               recipientID,

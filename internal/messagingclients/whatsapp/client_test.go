@@ -13,8 +13,9 @@ func TestHelloMessage_Template_Success(t *testing.T) {
 	to := "994552178732"
 	templateName := "hello_world"
 	languageCode := "en_US"
+	from := "15550909792"
 
-	_, err := client.SendMessage(to, templateName, languageCode)
+	_, err := client.SendMessage(from, to, templateName, languageCode)
 	if err != nil {
 		t.Logf("error sending message: %v", err)
 	}
@@ -26,8 +27,9 @@ func TestSendMessageTexSuccess(t *testing.T) {
 
 	message := "It is a Test message.Just ignore it."
 	recipientID := "4917635163191"
+	from := "15550909792"
 
-	response, err := client.SendMessageText(message, recipientID)
+	response, err := client.SendMessageText(from, message, recipientID)
 	if err != nil {
 		log.Fatalf("Error: %v", err)
 	}
@@ -38,12 +40,13 @@ func TestSendMessageDocument_Success(t *testing.T) {
 	// Arrange
 	client := NewClient("552041023667800", "e6de5aff86bed1577c681e73edf30f7e", "https://graph.facebook.com/v16.0/", "")
 
+	from := "15550909792"
 	recipientID := "4917635163191"
 	document := "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
 	caption := ""
 	link := true
 
-	_, err := client.SendDocument(document, recipientID, caption, link)
+	_, err := client.SendDocument(from, document, recipientID, caption, link)
 	if err != nil {
 		log.Fatalf("Error: %v", err)
 	}

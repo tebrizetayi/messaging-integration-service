@@ -29,7 +29,8 @@ func main() {
 		"4917635163191",
 		config.App.WhatsappAccessToken,
 		"https://graph.facebook.com/v16.0/",
-		config.App.WhatsappAccessToken)
+		config.App.WhatsappAccessToken,
+	)
 
 	// Services
 	controller := api.NewController(&messengerClient)
